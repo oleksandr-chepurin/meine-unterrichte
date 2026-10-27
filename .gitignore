@@ -1,0 +1,7 @@
+# Personenbezogene Daten
+data/
+**/data/
+
+# Lokale Dateien
+.DS_Store
+*.log
