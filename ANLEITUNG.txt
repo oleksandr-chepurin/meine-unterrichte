@@ -1,0 +1,11 @@
+MU PWA 1.1 – Testversion
+
+Alle Dateien und den Ordner icons/ ins öffentliche GitHub-Repository hochladen. NIEMALS data/ oder personenbezogene JSON-Dateien hochladen.
+GitHub Pages: Settings > Pages > Deploy from a branch > main > / (root).
+Dann die HTTPS-Seite auf dem iPad in Safari öffnen und Zum Home-Bildschirm wählen.
+
+Speichern: JSON-Download im Format MU YYYY-MM-DD_HH-MM.json.
+Öffnen: JSON aus IServ wählen.
+Abmelden: Download auslösen, Datei selbst in IServ sichern und prüfen, erst dann OK zum Löschen lokaler Daten.
+WICHTIG: Die App kann die Speicherung auf IServ nicht technisch verifizieren. Browser-Downloads, Verlauf und iCloud-Synchronisation müssen separat geprüft werden.
+Vor Einsatz mit personenbezogenen Daten die Freigabe der Schule/Datenschutzbeauftragten einholen.
