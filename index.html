@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Meine Unterrichte">
   <meta name="application-name" content="Meine Unterrichte">
-  <meta name="app-version" content="v.1.1.bn Beta">
+  <meta name="app-version" content="v.1.2.b Beta">
   <title>Meine Unterrichte</title>
   <style>
     :root{
@@ -1444,7 +1444,7 @@
 <script>
 (function(){
   'use strict';
-  var VERSION = 'v.1.1.bn Beta';
+  var VERSION = 'v.1.2.b Beta';
   var STORAGE_KEY = 'meine-unterrichte-v1-0-a-beta';
   var appEl = document.getElementById('app');
   var toastEl = document.getElementById('toast');
@@ -1521,7 +1521,7 @@
     d.rooms.forEach(function(r){ r.width=clamp(Number(r.width)||980,700,1800); r.height=clamp(Number(r.height)||620,420,1200); r.desks=Array.isArray(r.desks)?r.desks:[]; r.desks.forEach(function(ds){ ds.seats=clamp(Number(ds.seats)||1,1,4); if(!ds.seatRule) ds.seatRule=(Number(ds.seats)>1?'two':'only1'); if(['only1','prefer1','two'].indexOf(ds.seatRule)<0) ds.seatRule=(Number(ds.seats)>1?'two':'only1'); }); });
     d.tools.forEach(function(t){ var n=(t.name||'').toLowerCase(); if((n.indexOf('antwort')>=0) && !t.kind) t.kind='answer'; if(t.area==='AV' || t.area==='SV') t.kind='conduct'; if(!t.kind) t.kind='stars'; if(t.kind==='conduct') t.scale=5; });
     d.lessons.forEach(function(l){ l.date=l.date||todayISO(); l.scheduleId=l.scheduleId||''; l.period=l.period||''; l.slotLabel=l.slotLabel||''; l.start=l.start||''; l.end=l.end||''; l.canceled=!!l.canceled; (l.blocks||[]).forEach(function(b){ if(b.type==='activity') b.toolIds=Array.isArray(b.toolIds)?b.toolIds:((d.tools||[]).filter(function(t){return t.area!=='NOTE';}).slice(0,5).map(function(t){return t.id;})); if(b.type==='test'){ b.area=b.area||'SN'; b.test=b.test||{}; b.test.kind=b.test.kind||'Test'; b.test.title=b.test.title||b.title||'Test'; b.test.parts=Array.isArray(b.test.parts)?b.test.parts:[{id:uid('part'),label:'Teil 1',max:10}]; b.test.points=b.test.points||{}; b.test.grades=b.test.grades||{}; b.test.scaleSteps=Array.isArray(b.test.scaleSteps)&&b.test.scaleSteps.length?b.test.scaleSteps:clone((d.gradeScales[0]&&d.gradeScales[0].steps)||[]); } }); });
-    return d;
+    return muInit(d);
   }
 
   function byId(arr,id){ for(var i=0;i<arr.length;i++){ if(arr[i].id===id) return arr[i]; } return null; }
@@ -1546,30 +1546,10 @@
     var map={attendance:['✅','Anwesenheit'],homework_check:['📚','HA-Kontrolle'],activity:['⭐','Bewertung'],grading:['🧾','Benotung'],homework_give:['🏠','Hausaufgabe'],test:['📝','Test/Klassenarbeit'],note:['🗒️','Notiz']};
     return map[type]||['•','Baustein'];
   }
-  function defaultToolIdsForArea(area){
-    area=area||'MN';
-    if(area==='MN'){
-      var mn=state.tools.filter(function(t){
-        var n=(t.name||'').toLowerCase();
-        return t.area==='MN' && (t.kind==='answer' || n.indexOf('idee')>=0 || n.indexOf('lösungsweg')>=0);
-      }).map(function(t){return t.id;});
-      if(mn.length) return mn;
-    }
-    var ids=state.tools.filter(function(t){ return t.area===area; }).map(function(t){return t.id;});
-    if(!ids.length && area==='MN') ids=state.tools.filter(function(t){return t.area==='MN';}).map(function(t){return t.id;});
-    return ids;
-  }
-  function compatibleToolsForBlock(blockOrArea){
-    var area=typeof blockOrArea==='string'?blockOrArea:((blockOrArea&&blockOrArea.area)||'MN');
-    if(area==='AV' || area==='SV' || area==='MN' || area==='SN') return state.tools.filter(function(t){return t.area===area;});
-    return state.tools.filter(function(t){return t.area!=='NOTE';});
-  }
-  function activeToolIdsForBlock(block){
-    var allowed=compatibleToolsForBlock(block).map(function(t){return t.id;});
-    var ids=(block&&block.toolIds&&block.toolIds.length)?block.toolIds.slice():((block&&block.type==='activity')?defaultToolIdsForArea(block.area||'MN'):allowed.slice());
-    return ids.filter(function(id){return allowed.indexOf(id)>=0;});
-  }
-  function makeBlock(type,title){
+  function defaultToolIdsForArea(area,c){ c=c||currentClass(); var p=c?muProfile(c):null; return state.tools.filter(function(t){var r=p?p.tools[t.id]:{area:t.area,mode:muDefaultRule(t,{subject:''}).mode}; return r&&r.area===(area||'MN')&&r.mode==='Standard';}).map(function(t){return t.id;}); }
+  function compatibleToolsForBlock(b){var area=typeof b==='string'?b:(b&&b.area)||'MN',c=typeof b==='string'?currentClass():muBlockClass(b),p=c?muProfile(c):null; return state.tools.filter(function(t){var r=p?p.tools[t.id]:{area:t.area,mode:'Optional'};return r&&r.mode!=='Deaktiviert'&&(validStatArea(area)?r.area===area:r.area!=='NOTE');});}
+  function activeToolIdsForBlock(b){if(!b)return [];return Array.isArray(b.toolIds)?b.toolIds.filter(function(id){return !!getTool(id);}):defaultToolIdsForArea(b.area,muBlockClass(b));}
+  function makeBlock(type,title,c){ c=c||currentClass();
     var areaOverride=null;
     if(type==='activity_mn'){ type='activity'; areaOverride='MN'; title=title||'Mitarbeit'; }
     if(type==='activity_av'){ type='activity'; areaOverride='AV'; title=title||'Arbeitsverhalten'; }
@@ -1577,11 +1557,11 @@
     var m=blockMeta(type); var b={id:uid('block'),type:type,title:title||m[1],area:'none'};
     if(type==='activity'){
       b.area=areaOverride||'MN';
-      b.toolIds=defaultToolIdsForArea(b.area);
+      b.toolIds=defaultToolIdsForArea(b.area,c);
     }
     if(type==='grading') b.area='MN';
-    if(type==='test') { b.area='SN'; b.test={title:title||'Test',kind:'Test',parts:[{id:uid('part'),label:'Teil 1',max:10}],points:{},grades:{},scaleSteps:clone((state.gradeScales[0]&&state.gradeScales[0].steps)||[])}; }
-    return b;
+    if(type==='test') { b.area=c?muProfile(c).tests.Test.area:'MN'; b.test={title:title||'Test',kind:'Test',parts:[],points:{},grades:{},scaleSteps:clone((state.gradeScales[0]&&state.gradeScales[0].steps)||[])}; }
+    muStampBlock(b,c); return b;
   }
   function dayName(n){ return ['','Mo','Di','Mi','Do','Fr','Sa','So'][Number(n)]||'Tag'; }
   function dayOfDate(dateStr){ var d=new Date(dateStr+'T12:00:00'); var day=d.getDay(); return day===0?7:day; }
@@ -1634,7 +1614,7 @@
     if(simple==='attendance|homework_check|activity|grading|homework_give' || simple==='attendance|activity|grading|homework_give'){
       types=['attendance','activity_mn','activity_av','activity_sv','grading','homework_give'];
     }
-    types.forEach(function(t){ lesson.blocks.push(makeBlock(t)); });
+    types.forEach(function(t){ lesson.blocks.push(makeBlock(t,undefined,c)); });
     state.lessons.push(lesson); save(); return lesson;
   }
   function lessonOrderValue(l){ return Number(l.period)||Number((l.start||'').replace(':',''))||0; }
@@ -1683,7 +1663,7 @@
   function observationCountsForStats(lesson,obs,tool){
     var b=observationBlock(lesson,obs);
     if(!b || !validStatArea(b.area)) return false;
-    if(tool && tool.area && validStatArea(tool.area) && b.area!==tool.area) return false;
+    
     return true;
   }
   function observationsFor(c, studentId, opts){ opts=opts||{}; var out=[]; getLessonsForClass(c).forEach(function(l){ if(opts.beforeDate && l.date>=opts.beforeDate) return; if(opts.lessonId && l.id!==opts.lessonId) return; if(!studentIsInClassOnDate(c,studentId,l.date)) return; (l.observations||[]).forEach(function(o){ if(o.studentId===studentId){ var tool=getTool(o.toolId); if(!tool) return; if(!observationCountsForStats(l,o,tool)) return; var b=observationBlock(l,o); if(opts.area && b.area!==opts.area) return; out.push({lesson:l, block:b, obs:o, tool:tool}); }}); }); return out; }
@@ -1717,10 +1697,10 @@
   function gradeValuesFor(c, studentId, area){
     var vals=[];
     getLessonsForClass(c).forEach(function(l){
-      if(!studentIsInClassOnDate(c,studentId,l.date)) return;
+      if(l.canceled||!studentIsInClassOnDate(c,studentId,l.date)||isStudentAbsent(l,studentId)) return;
       if(l.grades && l.grades[studentId] && l.grades[studentId][area]){ var n=gradeToNumber(l.grades[studentId][area].grade); if(n) vals.push(n); }
       (l.blocks||[]).forEach(function(b){
-        if(b.type==='test' && (b.area||'SN')===area){ var t=testTotals(b,studentId); if(t.max>0){ var n=gradeToNumber(gradeFromPercent(t.percent,scaleForTest(b))); if(n) vals.push(n); } }
+        if(b.type==='test' && (b.area||'SN')===area){ var n=gradeToNumber(muTestGrade(b,studentId)); if(n) vals.push(n); }
       });
     });
     return vals;
@@ -2831,6 +2811,8 @@
     } else if(block&&block.type==='homework_check'){
       var cur=lesson.homework.check[st.id];
       row.appendChild(h('button',{class:'mini-tool '+(cur==='done'?'active':''),title:'Hausaufgabe erledigt',text:'✓',onclick:function(e){e.stopPropagation(); lesson.homework.check[st.id]='done'; save(); renderKeepScroll();}}));
+    } else if(block&&block.type==='test'){
+      renderTestGradeTools(panel,lesson,st,block,true); return;
     } else if(block&&block.type==='grading'){
       renderGradeTools(panel,c,lesson,st,block,true);
       return;
@@ -3200,7 +3182,15 @@
     renderGradeTools(desk,c,lesson,st,block,false);
     desk.addEventListener('click',function(){openOrToggleStudent(st.id); render();});
   }
-  function renderTestDesk(desk,c,lesson,st,block){ if(isStudentAbsent(lesson,st.id)){ renderAbsentLockedDesk(desk,st); return; } var totals=testTotals(block,st.id); desk.appendChild(h('div',{class:'minirow'},[renderCardButton(lesson,st)])); desk.appendChild(h('div',{class:'desk-stat'},[h('div',{text:totals.earned+' / '+totals.max+' P.'}),h('div',{text:totals.max?(block.area||'SN')+' · '+round1(totals.percent)+'% · Note '+gradeFromPercent(totals.percent,scaleForTest(block)):'keine Punkte'})])); desk.addEventListener('click',function(){openOrToggleStudent(st.id); render();}); }
+  function renderTestDesk(desk,c,lesson,st,block){ if(isStudentAbsent(lesson,st.id)){ renderAbsentLockedDesk(desk,st); return; } renderTestGradeTools(desk,lesson,st,block,false); desk.addEventListener('click',function(){openOrToggleStudent(st.id); render();}); }
+  function renderTestGradeTools(parent,lesson,st,block,compact){
+    var g=muTestGrade(block,st.id); parent.appendChild(h('div',{class:'grade-proposal',text:(block.area||'MN')+' · Note: '+(g||'—')}));
+    var row=h('div',{class:'grade-tools '+(compact?'compact':'')});
+    ['1','2','3','4','5','6'].forEach(function(n){row.appendChild(h('button',{class:'grade-btn '+(g===n?'active':''),text:n,title:'Note '+n+' speichern',onclick:function(e){e.stopPropagation();muSetTestGrade(block,lesson,st.id,n);}}));});parent.appendChild(row);
+  }
+  function muSetTestGrade(block,lesson,sid,value){if(isStudentAbsent(lesson,sid))return;if(!block.test)return;block.test.grades=block.test.grades||{};block.test.grades[sid]=value;save();renderKeepScroll();}
+  function muTestGrade(b,sid){if(!b.test)return '';var grades=b.test.grades||{};if(Object.prototype.hasOwnProperty.call(grades,sid)){var g=String(grades[sid]||'');return /^[1-6]$/.test(g)?g:'';}if(muLegacyTestComplete(b,sid)){var v=String(gradeFromPercent(testTotals(b,sid).percent,scaleForTest(b)));return /^[1-6]$/.test(v)?v:'';}return '';}
+
   function testTotals(block,sid){ var parts=(block.test&&block.test.parts)||[]; var p=(block.test&&block.test.points&&block.test.points[sid])||{}; var e=0,m=0; parts.forEach(function(part){ m+=Number(part.max)||0; e+=clamp(p[part.id]||0,0,Number(part.max)||0); }); return {earned:round1(e),max:round1(m),percent:m?e/m*100:0}; }
   function shuffledCopy(arr){
     var a=(arr||[]).slice();
@@ -3315,12 +3305,12 @@
       if(!studentIsInClassOnDate(c,studentId,l.date)) return;
       (l.blocks||[]).forEach(function(b){
         if(b.type!=='activity' || !validStatArea(b.area)) return;
-        if(tool.area && validStatArea(tool.area) && b.area!==tool.area) return;
+        
         if(opts.area && b.area!==opts.area) return;
-        if(activeToolIdsForBlock(b).indexOf(toolId)<0) return;
+        
         if(isStudentAbsent(l,studentId)) return;
         var o=findObservation(l,b.id,studentId,toolId);
-        if(!o){ if(tool.kind==='answer') stats.na++; return; }
+        if(!o) return;
         if(o.kind==='conduct' || tool.kind==='conduct'){
           var k=conductValueLabel(o.value||o.level);
           if(stats.conduct[k]!=null){ stats.conduct[k]++; stats.conduct.total++; stats.conduct.last=k; }
@@ -3339,9 +3329,9 @@
     return stats;
   }
   function areaStatsForStudent(c,studentId,area,opts){
-    var tools=state.tools.filter(function(t){return t.area===area;});
+    var tools=state.tools;
     var out={tools:[],avg:0,count:0,na:0,active:0};
-    tools.forEach(function(t){ var st=toolStatsForStudent(c,studentId,t.id,opts); if(st.count||st.right||st.partial||st.wrong||st.na){ out.tools.push({tool:t,stats:st}); out.na+=st.na; out.active+=st.totalActive; if(st.avg){ out.avg+=st.avg; out.count++; } }});
+    tools.forEach(function(t){ var st=toolStatsForStudent(c,studentId,t.id,Object.assign({},opts||{},{area:area})); if(st.count||st.right||st.partial||st.wrong||st.na){ out.tools.push({tool:t,stats:st}); out.na+=st.na; out.active+=st.totalActive; if(st.avg){ out.avg+=st.avg; out.count++; } }});
     out.avg=out.count?out.avg/out.count:0; return out;
   }
   function trendInfo(todayAvg,prevAvg){ var diff=(Number(todayAvg)||0)-(Number(prevAvg)||0); return diff>.25?{cls:'badge green',txt:'↗ Verbesserung'}:diff<-.25?{cls:'badge red',txt:'↘ Verschlechterung'}:{cls:'badge',txt:'→ Gleichstand'}; }
@@ -3404,7 +3394,7 @@
     body.appendChild(renderStudentCardEvents(c,lesson,sid)); body.appendChild(h('div',{class:'hr'})); body.appendChild(h('h3',{text:'Schülerprofil'})); var prof=h('textarea',{placeholder:'Dauerhafte Bemerkung / Hinweis, keine Diagnose'}); prof.value=st.remarks||''; prof.addEventListener('change',function(){ st.remarks=this.value; save(); }); body.appendChild(prof);
     d.appendChild(body); return d; }
   function renderGradePanel(c,lesson,st,sum,block){ var wrap=h('div',{class:'grid'}); if(isStudentAbsent(lesson,st.id)){ wrap.appendChild(h('div',{class:'notice',text:'Keine Benotung: Schüler:in ist abwesend.'})); return wrap; } ['MN','SN'].forEach(function(area){ var prop=area==='MN'?sum.mnProposal:sum.snProposal; var saved=lesson.grades[st.id]&&lesson.grades[st.id][area]; var row=h('div',{class:'card section',style:'box-shadow:none'},[h('div',{class:'row',style:'justify-content:space-between'},[h('b',{text:area}),h('span',{class:'badge',text:'Vorschlag: '+prop})])]); var opts=h('div',{class:'row',style:'margin-top:8px'}); ['keine','1','2','3','4','5','6'].forEach(function(g){ opts.appendChild(h('button',{class:'btn small '+(saved&&saved.grade===g?'active':''),text:g,onclick:function(){ if(!lesson.grades[st.id]) lesson.grades[st.id]={}; lesson.grades[st.id][area]={grade:g,source:(g===prop?'vorschlag':'eigene'),blockId:block?block.id:null,ts:new Date().toISOString()}; save(); render(); }})); }); row.appendChild(opts); wrap.appendChild(row); }); return wrap; }
-  function renderTestPanel(block,st){ var box=h('div',{},[h('h3',{text:'Punkte '+((block.test&&block.test.title)||'Test')})]); var lesson=currentLesson(); if(isStudentAbsent(lesson,st.id)){ box.appendChild(h('div',{class:'notice',text:'Keine Punkteingabe: Schüler:in ist abwesend.'})); return box; } if(!block.test.points[st.id]) block.test.points[st.id]={}; block.test.parts.forEach(function(p){ var row=h('div',{class:'row nowrap',style:'margin:6px 0'}); row.appendChild(h('span',{style:'min-width:120px',text:p.label+' / '+p.max})); var inp=h('input',{class:'input',type:'number',min:'0',max:String(p.max),value:String(block.test.points[st.id][p.id]||0),style:'max-width:100px'}); inp.addEventListener('change',function(){ block.test.points[st.id][p.id]=clamp(this.value,0,p.max); save(); render(); }); row.appendChild(inp); box.appendChild(row); }); var t=testTotals(block,st.id); box.appendChild(h('div',{class:'notice',text:'Gesamt: '+t.earned+' / '+t.max+' Punkte · '+round1(t.percent)+'% · '+(block.area||'SN')+' · Note '+gradeFromPercent(t.percent,scaleForTest(block))})); return box; }
+  function renderTestPanel(block,st){var lesson=currentLesson(),box=h('div',{},[h('h3',{text:'Note · '+((block.test&&block.test.title)||'Test')})]);if(isStudentAbsent(lesson,st.id)){box.appendChild(h('div',{class:'notice',text:'Schüler:in ist abwesend.'}));return box;}renderTestGradeTools(box,lesson,st,block,false);box.appendChild(h('button',{class:'btn small',text:'Note entfernen',onclick:function(){muSetTestGrade(block,lesson,st.id,null);}}));return box;}
 
   function resetTempDesks(lesson){ lesson.tempDesks={}; save(); }
   function enableDeskDrag(el,lesson,d){ var sx,sy,ox,oy,drag=false; el.addEventListener('pointerdown',function(e){ if(ui.mode!=='gruppen') return; drag=true; el.setPointerCapture(e.pointerId); sx=e.clientX; sy=e.clientY; var p=getDeskPos(lesson,d); ox=p.x; oy=p.y; el.classList.add('dragging'); }); el.addEventListener('pointermove',function(e){ if(!drag) return; var nx=ox+(e.clientX-sx), ny=oy+(e.clientY-sy); el.style.left=nx+'px'; el.style.top=ny+'px'; }); el.addEventListener('pointerup',function(e){ if(!drag) return; drag=false; el.classList.remove('dragging'); var nx=parseFloat(el.style.left), ny=parseFloat(el.style.top); lesson.tempDesks[d.id]={x:Math.round(nx),y:Math.round(ny),w:d.w,h:d.h}; save(); }); }
@@ -3563,12 +3553,12 @@
     var projectSel=h('select',{}); fillProjectStepSelect(projectSel,currentClass(),null);
     body.appendChild(h('div',{class:'span-12'},[h('label',{class:'label',text:'Projektarbeit / Schritt optional'}),projectSel]));
     var toolsBox=h('div',{class:'span-12'}); body.appendChild(toolsBox);
-    var selected=[];
+    var selected=null;
     function drawTools(){
       clear(toolsBox);
-      if(typeSel.value!=='activity') { selected=[]; return; }
+      if(typeSel.value!=='activity') { selected=null; return; }
       var tools=compatibleToolsForBlock(area.value);
-      if(!selected.length) selected=defaultToolIdsForArea(area.value);
+      if(selected===null) selected=defaultToolIdsForArea(area.value);
       selected=selected.filter(function(id){ return tools.some(function(t){return t.id===id;}); });
       toolsBox.appendChild(h('label',{class:'label',text:'Werkzeuge dieser Etappe'}));
       var list=h('div',{class:'pill-list'});
@@ -3583,13 +3573,13 @@
     function syncAreaOptions(){
       var oldVal=area.value;
       fillSelect(area,blockAreaOptionsForType(typeSel.value),oldVal);
-      if(!Array.prototype.some.call(area.options,function(o){return o.value===oldVal;})) area.value=(typeSel.value==='activity'?'MN':(typeSel.value==='grading'?'MN':(typeSel.value==='test'?'SN':'none')));
+      if(typeSel.value==='test'||!Array.prototype.some.call(area.options,function(o){return o.value===oldVal;})) area.value=(typeSel.value==='activity'?'MN':(typeSel.value==='grading'?'MN':(typeSel.value==='test'?(currentClass()?muProfile(currentClass()).tests.Test.area:'MN'):'none')));
       if(typeSel.value==='activity' && !title.value) title.placeholder=recommendedTitleForActivityArea(area.value);
       else title.placeholder=blockMeta(typeSel.value)[1];
-      selected=[]; drawTools();
+      selected=null; drawTools();
     }
     typeSel.addEventListener('change',syncAreaOptions);
-    area.addEventListener('change',function(){ if(typeSel.value==='activity' && !title.value) title.placeholder=recommendedTitleForActivityArea(area.value); selected=[]; drawTools(); });
+    area.addEventListener('change',function(){ if(typeSel.value==='activity' && !title.value) title.placeholder=recommendedTitleForActivityArea(area.value); selected=null; drawTools(); });
     syncAreaOptions();
     showModal('Baustein hinzufügen',body,function(){
       var type=typeSel.value||'activity';
@@ -3597,7 +3587,7 @@
       if((title.value||'').trim()) b.title=title.value.trim();
       else if(type==='activity') b.title=recommendedTitleForActivityArea(area.value);
       if(type==='grading' || type==='test' || type==='activity') b.area=area.value||b.area||'none';
-      if(type==='activity') b.toolIds=selected.slice();
+      if(type==='activity') b.toolIds=(selected||[]).slice(); muStampBlock(b,currentClass());
       if(type==='test' && b.test) b.test.title=b.title||b.test.title;
       setBlockProjectFromValue(b,projectSel.value);
       var idx=lesson.blocks.findIndex(function(x){return x.id===(afterBlockId||ui.activeBlockId);});
@@ -3626,7 +3616,7 @@
       clear(toolsBox);
       if(typeSel.value!=='activity') return;
       var tools=compatibleToolsForBlock(area.value);
-      if(!selected.length) selected=defaultToolIdsForArea(area.value);
+      if(selected===null) selected=defaultToolIdsForArea(area.value);
       selected=selected.filter(function(id){ return tools.some(function(t){return t.id===id;}); });
       toolsBox.appendChild(h('label',{class:'label',text:'Werkzeuge dieser Etappe'}));
       var list=h('div',{class:'pill-list'});
@@ -3637,12 +3627,12 @@
     function syncAreaOptions(){
       var old=area.value;
       fillSelect(area,blockAreaOptionsForType(typeSel.value),old);
-      if(!Array.prototype.some.call(area.options,function(o){return o.value===old;})) area.value=(typeSel.value==='activity'?'MN':(typeSel.value==='grading'?'MN':(typeSel.value==='test'?'SN':'none')));
+      if(!Array.prototype.some.call(area.options,function(o){return o.value===old;})) area.value=(typeSel.value==='activity'?'MN':(typeSel.value==='grading'?'MN':(typeSel.value==='test'?(currentClass()?muProfile(currentClass()).tests.Test.area:'MN'):'none')));
       if(typeSel.value==='activity' && !title.value) title.placeholder=recommendedTitleForActivityArea(area.value); else title.placeholder=blockMeta(typeSel.value)[1];
-      selected=[]; drawTools();
+      selected=null; drawTools();
     }
     typeSel.addEventListener('change',syncAreaOptions);
-    area.addEventListener('change',function(){ if(typeSel.value==='activity'&&!title.value) title.placeholder=recommendedTitleForActivityArea(area.value); selected=[]; drawTools(); });
+    area.addEventListener('change',function(){ if(typeSel.value==='activity'&&!title.value) title.placeholder=recommendedTitleForActivityArea(area.value); selected=null; drawTools(); });
     drawTools();
     body.appendChild(h('div',{class:'span-12 row',style:'justify-content:space-between'},[
       h('button',{class:'btn danger',text:'Etappe löschen',onclick:function(){ showConfirmModal('Etappe löschen?','„'+(block.title||'Etappe')+'“ wirklich löschen?',function(){ if(editBackdrop && editBackdrop.parentNode) document.body.removeChild(editBackdrop); deleteBlock(lesson,block.id); }); }}),
@@ -3655,11 +3645,11 @@
       block.title=(title.value||'').trim()||(newType==='activity'?recommendedTitleForActivityArea(area.value):blockMeta(newType)[1]);
       block.area=area.value||'none';
       setBlockProjectFromValue(block,projectSel.value);
-      if(newType==='activity') block.toolIds=selected.slice();
+      if(newType==='activity') block.toolIds=(selected||[]).slice(); muStampBlock(block,c);
       if(newType==='grading' && (!block.area || block.area==='none')) block.area='MN';
       if(newType==='test'){
-        block.area=block.area&&block.area!=='none'?block.area:'SN';
-        if(!block.test){ block.test={title:block.title||'Test',kind:'Test',parts:[{id:uid('part'),label:'Teil 1',max:10}],points:{},grades:{},scaleSteps:clone((state.gradeScales[0]&&state.gradeScales[0].steps)||[])}; }
+        block.area=block.area||'MN';
+        if(!block.test){ block.test={title:block.title||'Test',kind:'Test',parts:[],points:{},grades:{},scaleSteps:clone((state.gradeScales[0]&&state.gradeScales[0].steps)||[])}; }
         block.test.title=block.test.title||block.title||'Test';
       }
       save(); render();
@@ -3697,33 +3687,23 @@
       list.appendChild(btn);
     });
     body.appendChild(list);
-    showModal('Werkzeuge dieser Etappe',body,function(){ block.toolIds=selected.slice(); save(); render(); });
+    showModal('Werkzeuge dieser Etappe',body,function(){ block.toolIds=selected.slice(); muStampBlock(block,currentClass()); if(block.toolIds.indexOf(ui.activeToolId)<0)ui.activeToolId=null; save(); render(); });
   }
   function showTestModal(block){
-    if(!block.test) block.test={title:'Test',kind:'Test',parts:[{id:uid('part'),label:'Teil 1',max:10}],points:{},grades:{},scaleSteps:clone((state.gradeScales[0]&&state.gradeScales[0].steps)||[])};
-    block.area=block.area||'SN'; block.test.scaleSteps=block.test.scaleSteps&&block.test.scaleSteps.length?block.test.scaleSteps:clone((state.gradeScales[0]&&state.gradeScales[0].steps)||[]);
+    if(!block.test) block.test={title:'Test',kind:'Test',parts:[],points:{},grades:{},scaleSteps:clone((state.gradeScales[0]&&state.gradeScales[0].steps)||[])};
+    block.area=block.area||'MN'; block.test.scaleSteps=block.test.scaleSteps&&block.test.scaleSteps.length?block.test.scaleSteps:clone((state.gradeScales[0]&&state.gradeScales[0].steps)||[]);
     var body=h('div',{});
     var grid=h('div',{class:'form-grid'});
     var title=h('input',{class:'input',value:block.test.title||''}); title.addEventListener('change',function(){block.test.title=this.value; block.title=this.value||block.title; save();});
-    var kind=h('select',{}); ['Test','Klassenarbeit','Lernkontrolle','Praktische Arbeit','Projekt'].forEach(function(k){kind.appendChild(h('option',{value:k,text:k}));}); kind.value=block.test.kind||'Test'; kind.addEventListener('change',function(){block.test.kind=this.value;save();render();});
+    var kind=h('select',{}); ['Test','Klassenarbeit','Lernkontrolle','Praktische Arbeit','Projekt','Praktische Prüfung'].forEach(function(k){kind.appendChild(h('option',{value:k,text:k}));}); kind.value=block.test.kind||'Test'; kind.addEventListener('change',function(){block.test.kind=this.value;var r=currentClass()&&muProfile(currentClass()).tests[this.value];if(r){block.area=r.area;block.assessmentWeight=r.weight;area.value=r.area;}save();render();});
     var area=h('select',{}); [['SN','SN – schriftliche Leistung'],['MN','MN / sonstige Leistung'],['none','nicht in MN/SN zählen']].forEach(function(a){area.appendChild(h('option',{value:a[0],text:a[1]}));}); area.value=block.area||'SN'; area.addEventListener('change',function(){block.area=this.value;save();render();});
     grid.appendChild(h('div',{class:'span-6'},[h('label',{class:'label',text:'Titel'}),title]));
     grid.appendChild(h('div',{class:'span-3'},[h('label',{class:'label',text:'Art'}),kind]));
     grid.appendChild(h('div',{class:'span-3'},[h('label',{class:'label',text:'Zählt zu'}),area]));
     body.appendChild(grid);
-    body.appendChild(h('div',{class:'notice',style:'margin-top:10px',text:'Tests können je nach Fachkonferenz zu SN oder MN gehören. Den Notenschlüssel kannst du für jeden Test / jede Klassenarbeit separat anpassen.'}));
-    body.appendChild(h('div',{class:'hr'}));
-    body.appendChild(h('h3',{text:'Teile / Aufgaben'}));
-    block.test.parts.forEach(function(p){ var row=h('div',{class:'row nowrap',style:'margin-bottom:8px'}); var lab=h('input',{class:'input',value:p.label}); lab.addEventListener('change',function(){p.label=this.value;save();}); var max=h('input',{class:'input',type:'number',value:String(p.max),style:'max-width:100px'}); max.addEventListener('change',function(){p.max=Math.max(0,Number(this.value)||0);save();}); row.appendChild(lab); row.appendChild(max); row.appendChild(h('button',{class:'btn small danger',text:'×',onclick:function(){block.test.parts=block.test.parts.filter(function(x){return x.id!==p.id;});save();showTestModal(block);}})); body.appendChild(row); });
-    body.appendChild(h('button',{class:'btn',text:'+ Teil',onclick:function(){block.test.parts.push({id:uid('part'),label:'Teil '+(block.test.parts.length+1),max:10});save();showTestModal(block);}}));
-    body.appendChild(h('div',{class:'hr'}));
-    body.appendChild(h('h3',{text:'Notenschlüssel für diesen Leistungsnachweis'}));
-    body.appendChild(h('p',{class:'hint',text:'Grenzen gelten ab Prozentwert. Diese Skala betrifft nur diesen Test / diese Klassenarbeit.'}));
-    block.test.scaleSteps.sort(function(a,b){return b.percent-a.percent;}).forEach(function(s){ var row=h('div',{class:'row nowrap',style:'margin:6px 0'}); var p=h('input',{class:'input',type:'number',min:'0',max:'100',value:String(s.percent),style:'max-width:100px'}); p.addEventListener('change',function(){s.percent=clamp(this.value,0,100);save();}); var g=h('input',{class:'input',value:s.grade,style:'max-width:90px'}); g.addEventListener('change',function(){s.grade=this.value;save();}); row.appendChild(h('span',{style:'min-width:42px',text:'ab'})); row.appendChild(p); row.appendChild(h('span',{text:'% ='})); row.appendChild(g); row.appendChild(h('button',{class:'btn small danger',text:'×',onclick:function(){block.test.scaleSteps=block.test.scaleSteps.filter(function(x){return x!==s;});save();showTestModal(block);}})); body.appendChild(row); });
-    body.appendChild(h('div',{class:'row'},[
-      h('button',{class:'btn',text:'+ Stufe',onclick:function(){block.test.scaleSteps.push({percent:0,grade:'6'});save();showTestModal(block);}}),
-      h('button',{class:'btn',text:'Standardskala übernehmen',onclick:function(){block.test.scaleSteps=clone((state.gradeScales[0]&&state.gradeScales[0].steps)||[]);save();showTestModal(block);}})
-    ]));
+    body.appendChild(h('p',{class:'hint',text:'Nur die erhaltene Note wird erfasst. Vorhandene Punktedaten bleiben erhalten.'}));
+    var lesson=currentLesson(),c=currentClass();
+    if(c&&lesson){body.appendChild(h('h3',{text:'Noten erfassen'}));studentsForDate(c,lesson.date).forEach(function(st){var sel=h('select',{});fillSelect(sel,[['','—'],['1','1'],['2','2'],['3','3'],['4','4'],['5','5'],['6','6']],muTestGrade(block,st.id));sel.disabled=isStudentAbsent(lesson,st.id);sel.addEventListener('change',function(){muSetTestGrade(block,lesson,st.id,this.value||null);});body.appendChild(h('div',{class:'row nowrap',style:'margin:6px 0;justify-content:space-between'},[h('span',{text:st.name}),sel]));});}
     showModal('Test/Klassenarbeit bearbeiten',body,function(){save();render();},'Fertig'); }
   function showModal(title,body,onOk,okText){ var back=h('div',{class:'modal-backdrop'}); var modal=h('div',{class:'modal'}); modal.appendChild(h('div',{class:'modal-head'},[h('h2',{text:title}),h('button',{class:'btn small',text:'×',onclick:function(){ if(back.parentNode) document.body.removeChild(back); }})])); modal.appendChild(h('div',{class:'modal-body'},[body])); modal.appendChild(h('div',{class:'modal-foot'},[h('button',{class:'btn',text:'Abbrechen',onclick:function(){ if(back.parentNode) document.body.removeChild(back); }}),h('button',{class:'btn primary',text:okText||'Übernehmen',onclick:function(){ if(onOk) onOk(); if(back.parentNode) document.body.removeChild(back);}})])); back.appendChild(modal); document.body.appendChild(back); return back; }
   function showModalCancelOnly(title,body){ var back=h('div',{class:'modal-backdrop'}); var modal=h('div',{class:'modal'}); modal.appendChild(h('div',{class:'modal-head'},[h('h2',{text:title}),h('button',{class:'btn small',text:'×',onclick:function(){document.body.removeChild(back);}})])); modal.appendChild(h('div',{class:'modal-body'},[body])); modal.appendChild(h('div',{class:'modal-foot'},[h('button',{class:'btn',text:'Abbrechen',onclick:function(){ if(back.parentNode) document.body.removeChild(back);}})])); back.appendChild(modal); document.body.appendChild(back); }
@@ -3782,10 +3762,10 @@
     var layout=h('div',{class:'settings-layout '+(wideRoom?'room-wide':'')+(ui.settingsNavCompact?' nav-compact':'')});
     var nav=h('div',{class:'card side-nav'});
     nav.appendChild(h('button',{class:'btn nav-toggle',text:ui.settingsNavCompact?'›':'‹ Menü',title:'Einstellungsmenü schmal/breit',onclick:function(){ui.settingsNavCompact=!ui.settingsNavCompact; renderKeepScroll();}}));
-    [['classes','👥','Klassen','Klassen'],['periods','⏱','Stunden','Stundenzeitplanung'],['rooms','🏫','Räume','Klassenräume'],['tools','🧰','Werkzeuge','Werkzeuge'],['scale','🔢','Skala','Notenskala'],['data','💾','Daten','Datei / Daten']].forEach(function(x){ var label=x[0]==='periods'?'Stundenzeiten':x[3]; nav.appendChild(h('button',{class:'btn nav-btn', 'data-tab':x[0], 'aria-selected':String(ui.settingsTab===x[0]), title:x[3], onclick:function(){ui.settingsTab=x[0]; ui.roomEditorWide=false; render();}},[h('span',{class:'nav-ico',text:x[1]}),h('span',{class:'nav-label',text:label})])); });
+    [['classes','👥','Klassen','Klassen'],['periods','⏱','Stunden','Stundenzeitplanung'],['rooms','🏫','Räume','Klassenräume'],['tools','🧰','Werkzeuge','Werkzeuge'],['assessment','⚖','Bewertung','Bewertung'],['scale','🔢','Skala','Notenskala'],['data','💾','Daten','Datei / Daten']].forEach(function(x){ var label=x[0]==='periods'?'Stundenzeiten':x[3]; nav.appendChild(h('button',{class:'btn nav-btn', 'data-tab':x[0], 'aria-selected':String(ui.settingsTab===x[0]), title:x[3], onclick:function(){ui.settingsTab=x[0]; ui.roomEditorWide=false; render();}},[h('span',{class:'nav-ico',text:x[1]}),h('span',{class:'nav-label',text:label})])); });
     layout.appendChild(nav);
     var panel=h('div',{class:'card section'});
-    if(ui.settingsTab==='periods') renderPeriodSettings(panel); else if(ui.settingsTab==='rooms') renderRoomSettings(panel); else if(ui.settingsTab==='tools') renderToolSettings(panel); else if(ui.settingsTab==='scale') renderScaleSettings(panel); else if(ui.settingsTab==='data') renderDataSettings(panel); else renderClassSettings(panel);
+    if(ui.settingsTab==='periods') renderPeriodSettings(panel); else if(ui.settingsTab==='rooms') renderRoomSettings(panel); else if(ui.settingsTab==='tools') renderToolSettings(panel); else if(ui.settingsTab==='assessment') renderAssessmentSettings(panel); else if(ui.settingsTab==='scale') renderScaleSettings(panel); else if(ui.settingsTab==='data') renderDataSettings(panel); else renderClassSettings(panel);
     layout.appendChild(panel); root.appendChild(layout);
   }
   function renderPeriodSettings(panel){
@@ -3810,7 +3790,7 @@
     [['subject','Fach',3],['name','Klasse/Kurs',3],['branch','Zweig',2],['role','Rolle',2],['schoolYear','Schuljahr',3]].forEach(function(x){ var inp=h('input',{class:'input',value:c[x[0]]||''}); inp.addEventListener('change',function(){c[x[0]]=this.value;save();render();}); form.appendChild(h('div',{class:'span-'+x[2]},[h('label',{class:'label',text:x[1]}),inp])); });
     form.appendChild(h('div',{class:'span-7'},[h('label',{class:'label',text:'Aktuelles Thema'}),h('div',{class:'notice current-topic-display',text:effectiveTopicForDate(c,todayISO())||'kein Thema'})]));
     var roomSel=h('select',{}); state.rooms.forEach(function(r){roomSel.appendChild(h('option',{value:r.id,text:r.name}));}); roomSel.value=c.defaultRoomId||''; roomSel.addEventListener('change',function(){c.defaultRoomId=this.value;if(c.roomIds.indexOf(this.value)<0)c.roomIds.push(this.value);save();render();}); form.appendChild(h('div',{class:'span-2'},[h('label',{class:'label',text:'Standardraum'}),roomSel]));
-    var mn=h('input',{class:'input',type:'number',value:String(c.weights.mn||50)}); var sn=h('input',{class:'input',type:'number',value:String(c.weights.sn||50)}); mn.addEventListener('change',function(){c.weights.mn=Number(this.value)||0;save();}); sn.addEventListener('change',function(){c.weights.sn=Number(this.value)||0;save();}); form.appendChild(h('div',{class:'span-2'},[h('label',{class:'label',text:'MN %'}),mn])); form.appendChild(h('div',{class:'span-2'},[h('label',{class:'label',text:'SN %'}),sn]));
+    var wp=muProfile(c);form.appendChild(h('div',{class:'span-4'},[h('label',{class:'label',text:'Bewertungsprofil'}),h('button',{class:'btn',text:'MN '+wp.mn+' % / SN '+(100-wp.mn)+' % · bearbeiten',onclick:function(){ui.assessmentClassId=c.id;ui.assessmentDepth=4;ui.settingsTab='assessment';render();}})]));
     var mat=h('textarea',{placeholder:'z. B. Lineal, Geodreieck, Zirkel, Taschenrechner'}); mat.value=(c.materialItems||[]).join(', '); mat.addEventListener('change',function(){ c.materialItems=this.value.split(/[,\n;]/).map(function(x){return x.trim();}).filter(Boolean); save(); renderKeepScroll(); }); form.appendChild(h('div',{class:'span-12'},[h('label',{class:'label',text:'Zusatzmaterial für Bereitschaft'}),mat,h('div',{class:'hint',text:'Diese Einträge erscheinen in der Material-Auswahl bei Anwesenheit.'})]));
     panel.appendChild(form);
     panel.appendChild(h('div',{class:'hr'}));
@@ -4314,7 +4294,7 @@
     }); table.appendChild(tb); panel.appendChild(table);
   }
   function renderScaleSettings(panel){ panel.appendChild(h('h2',{text:'Notenskala'})); var scale=state.gradeScales[0]; scale.steps.sort(function(a,b){return b.percent-a.percent;}).forEach(function(s){ var row=h('div',{class:'row nowrap',style:'margin:8px 0'}); var p=h('input',{class:'input',type:'number',min:'0',max:'100',value:String(s.percent),style:'max-width:120px'}); p.addEventListener('change',function(){s.percent=clamp(this.value,0,100);save();render();}); var g=h('input',{class:'input',value:s.grade,style:'max-width:120px'}); g.addEventListener('change',function(){s.grade=this.value;save();render();}); row.appendChild(h('span',{style:'min-width:80px',text:'ab %'})); row.appendChild(p); row.appendChild(h('span',{text:'Note'})); row.appendChild(g); row.appendChild(h('button',{class:'btn small danger',text:'×',onclick:function(){scale.steps=scale.steps.filter(function(x){return x!==s;});save();render();}})); panel.appendChild(row); }); panel.appendChild(h('button',{class:'btn',text:'+ Stufe',onclick:function(){scale.steps.push({percent:0,grade:'6'});save();render();}})); }
-  function renderDataSettings(panel){ panel.appendChild(h('h2',{text:'Datei / Daten'})); panel.appendChild(h('div',{class:'notice',text:'Die Beta arbeitet offline im Browser. Für IServ: Datei speichern und in den gewünschten IServ-Ordner legen; später kann eine direkte Integration geprüft werden.'})); panel.appendChild(h('div',{class:'row',style:'margin-top:12px'},[h('button',{class:'btn primary',text:'JSON speichern',onclick:exportJSON}),h('button',{class:'btn',text:'Lokale Speicherung löschen',onclick:function(){if(confirm('Lokale Browserdaten löschen? Vorher JSON speichern!')){localStorage.removeItem(STORAGE_KEY); state=seedData(); save(); render();}}})])); }
+  function renderDataSettings(panel){ panel.appendChild(h('h2',{text:'Datei / Daten'})); panel.appendChild(h('div',{class:'notice',text:'Die Beta arbeitet offline im Browser. Für IServ: Datei speichern und in den gewünschten IServ-Ordner legen; später kann eine direkte Integration geprüft werden.'})); panel.appendChild(h('div',{class:'row',style:'margin-top:12px'},[h('button',{class:'btn primary',text:'JSON speichern',onclick:exportJSON}),h('button',{class:'btn',text:'Lokale Speicherung löschen',onclick:function(){if(confirm('Lokale Browserdaten löschen? Vorher JSON speichern!')){localStorage.removeItem(STORAGE_KEY); state=muInit(seedData()); save(); render();}}})])); }
 
   function reportAreaBadge(c,sid,area){
     var st=areaStatsForStudent(c,sid,area,{}); var vals=gradeValuesFor(c,sid,area); var parts=[];
@@ -4322,7 +4302,7 @@
       var all={A:0,B:0,C:0,D:0,E:0,total:0,last:'—'};
       (st.tools||[]).forEach(function(x){ if(x.stats&&x.stats.conduct){ ['A','B','C','D','E'].forEach(function(k){all[k]+=x.stats.conduct[k]||0;}); all.total+=x.stats.conduct.total||0; if(x.stats.conduct.last&&x.stats.conduct.last!=='—') all.last=x.stats.conduct.last; } });
       if(all.total) parts.push(conductSummaryText(all));
-      var prop=conductProposalFromCounts(all); if(prop!=='—') parts.push('Vorschlag '+prop);
+      
     } else if(st.avg) parts.push('Ø '+round1(st.avg)+'★');
     if(st.active) parts.push('aktiv '+st.active);
     if(st.na) parts.push('n/a '+st.na);
@@ -4343,7 +4323,7 @@
     var tbl=h('table',{}), thead=h('thead',{}), tbody=h('tbody',{});
     thead.appendChild(h('tr',{},['Name','MN','AV','SV','SN','Beteiligung','Karten','Anwesenheit'].map(function(x){return h('th',{text:x});}))); tbl.appendChild(thead);
     c.students.forEach(function(s){ var rs=reportStudentStats(c,s.id), cs=studentCardStats(c,s.id); var mn=rs.areas.MN, av=rs.areas.AV, sv=rs.areas.SV, sn=rs.areas.SN; var sum=studentSummary(c,s.id,{id:'report',date:todayISO()});
-      function cellArea(area,st,proposal,sid){ var mini=h('div',{class:'report-mini'}); if(area==='AV'||area==='SV'){ var txt=reportAreaBadge(c,sid,area); mini.appendChild(h('span',{class:txt==='—'?'subtle':'badge blue',text:txt})); return mini; } if(st.avg) mini.appendChild(h('span',{class:'badge blue',text:'Ø '+round1(st.avg)+'★'})); if(st.active) mini.appendChild(h('span',{class:'badge',text:'aktiv '+st.active})); if(st.na) mini.appendChild(h('span',{class:'badge',text:'n/a '+st.na})); if(proposal&&proposal!=='—') mini.appendChild(h('span',{class:'badge green',text:'Vorschlag '+proposal})); if(!mini.childNodes.length) mini.appendChild(h('span',{class:'subtle',text:'—'})); return mini; }
+      function cellArea(area,st,proposal,sid){ var mini=h('div',{class:'report-mini'}); if(area==='AV'||area==='SV'){ var txt=reportAreaBadge(c,sid,area); mini.appendChild(h('span',{class:txt==='—'?'subtle':'badge blue',text:txt}));var last=muLatest(c,sid,todayISO());if(last&&last.grades[area])mini.appendChild(h('span',{class:'badge',text:'Bestätigt: '+last.grades[area]+' · '+last.date})); return mini; } if(st.avg) mini.appendChild(h('span',{class:'badge blue',text:'Ø '+round1(st.avg)+'★'})); if(st.active) mini.appendChild(h('span',{class:'badge',text:'aktiv '+st.active})); if(st.na) mini.appendChild(h('span',{class:'badge',text:'n/a '+st.na})); var last=muLatest(c,sid,todayISO());if(last&&last.grades[area])mini.appendChild(h('span',{class:'badge',text:'Bestätigt: '+last.grades[area]+' · '+last.date})); if(!mini.childNodes.length) mini.appendChild(h('span',{class:'subtle',text:'—'})); return mini; }
       tbody.appendChild(h('tr',{},[
         h('td',{text:s.name}),
         h('td',{},[cellArea('MN',mn,sum.mnProposal,s.id)]),
@@ -4360,8 +4340,8 @@
   function renderReports(root){
     root.appendChild(h('div',{class:'view-title'},[h('div',{},[h('h1',{text:'Berichte und PDF'}),h('p',{text:'PDF-Ausgaben nutzen die Druckfunktion des Browsers. Personenblöcke werden nicht getrennt. Statistiken zählen nur wirklich eingetragene Daten.'})]) ]));
     var panel=h('div',{class:'card section'}); var sel=h('select',{style:'max-width:360px'}); state.classes.forEach(function(c){sel.appendChild(h('option',{value:c.id,text:c.subject+' '+c.name}));}); ui.selectedReportClassId=ui.selectedReportClassId||((state.classes[0]||{}).id); sel.value=ui.selectedReportClassId||''; sel.addEventListener('change',function(){ui.selectedReportClassId=this.value;render();}); panel.appendChild(h('label',{class:'label',text:'Klasse'})); panel.appendChild(sel); var c=byId(state.classes,ui.selectedReportClassId);
-    panel.appendChild(h('div',{class:'report-actions'},[h('button',{class:'btn primary',text:'PDF Schülerstatistik',onclick:function(){printStudentStatistics(c);}}),h('button',{class:'btn',text:'PDF Zwischennoten pro Schüler:in',onclick:function(){printInterimReports(c);}}),h('button',{class:'btn',text:'PDF Klassenübersicht',onclick:function(){printClassOverview(c);}}),h('button',{class:'btn',text:'PDF Schülerliste',onclick:function(){printStudentList(c);}})]));
-    panel.appendChild(h('div',{class:'hr'})); panel.appendChild(h('h2',{text:'Schülerstatistik'})); panel.appendChild(h('p',{class:'hint',text:'Überblick für MN, AV, SV und SN. n/a bedeutet: keine aktive Beteiligung, getrennt von falschen Beiträgen.'})); panel.appendChild(renderReportPreview(c)); root.appendChild(panel);
+    panel.appendChild(h('div',{class:'report-actions'},[h('button',{class:'btn primary',text:'Leistungsstand festhalten',onclick:function(){muLeistungsstand(c);}}),h('button',{class:'btn primary',text:'PDF Schülerstatistik',onclick:function(){printStudentStatistics(c);}}),h('button',{class:'btn',text:'PDF Zwischennoten pro Schüler:in',onclick:function(){printInterimReports(c);}}),h('button',{class:'btn',text:'PDF Klassenübersicht',onclick:function(){printClassOverview(c);}}),h('button',{class:'btn',text:'PDF Schülerliste',onclick:function(){printStudentList(c);}})]));
+    if(c){var pp=muProfile(c),count=getLessonsForClass(c).filter(function(l){return !l.canceled&&l.date<=todayISO();}).reduce(function(n,l){return n+(l.blocks||[]).filter(function(b){return b.type==='test'&&b.area==='SN'&&['Klassenarbeit','Lernkontrolle'].includes(b.test&&b.test.kind)&&c.students.some(function(st){return muTestComplete(b,st.id);});}).length;},0);panel.appendChild(h('p',{class:'hint',text:'Dokumentierte Klassenarbeiten / Lernkontrollen im Schuljahr: '+count+' · Soll: '+pp.soll+' je '+pp.period}));} panel.appendChild(h('div',{class:'hr'})); panel.appendChild(h('h2',{text:'Schülerstatistik'})); panel.appendChild(h('p',{class:'hint',text:'Überblick für MN, AV, SV und SN. n/a bedeutet: keine aktive Beteiligung, getrennt von falschen Beiträgen.'})); panel.appendChild(renderReportPreview(c)); root.appendChild(panel);
   }
   function renderHistory(root){ root.appendChild(h('div',{class:'view-title'},[h('div',{},[h('h1',{text:'Unterrichtshistorie'}),h('p',{text:'In dieser Beta über Berichte und Klassenraum erreichbar.'})]) ])); }
 
@@ -4382,8 +4362,8 @@
     html+='<tr><td>n/a</td><td>'+esc(st.na||0)+'</td></tr>';
     if(vals.length){ var sum=0; vals.forEach(function(v){sum+=v;}); html+='<tr><td>Manuelle/Schriftliche Noten</td><td>'+esc(vals.length+' Einträge · Ø '+round1(sum/vals.length))+'</td></tr>'; }
     html+='</table>';
-    var tools=state.tools.filter(function(t){return t.area===area;}); var rows='';
-    tools.forEach(function(t){ var ts=toolStatsForStudent(c,sid,t.id,{}); if(!(ts.count||ts.right||ts.partial||ts.wrong||ts.na)) return; var val=t.kind==='answer' ? ('✅ '+(ts.right||0)+' · 🟡 '+(ts.partial||0)+' · ❌ '+(ts.wrong||0)+' · n/a '+(ts.na||0)) : (t.kind==='conduct' ? (conductSummaryText(ts.conduct)+' · Vorschlag '+conductProposalFromCounts(ts.conduct)) : ((ts.count?round1(ts.avg)+'★ · '+ts.count+' Einträge':'—')+' · n/a '+(ts.na||0))); rows+='<tr><td>'+esc(t.icon+' '+t.name)+'</td><td>'+esc(val)+'</td></tr>'; });
+    var tools=state.tools; var rows='';
+    tools.forEach(function(t){ var ts=toolStatsForStudent(c,sid,t.id,{area:area}); if(!(ts.count||ts.right||ts.partial||ts.wrong||ts.na)) return; var val=t.kind==='answer' ? ('✅ '+(ts.right||0)+' · 🟡 '+(ts.partial||0)+' · ❌ '+(ts.wrong||0)+' · n/a '+(ts.na||0)) : (t.kind==='conduct' ? (conductSummaryText(ts.conduct)) : ((ts.count?round1(ts.avg)+'★ · '+ts.count+' Einträge':'—')+' · n/a '+(ts.na||0))); rows+='<tr><td>'+esc(t.icon+' '+t.name)+'</td><td>'+esc(val)+'</td></tr>'; });
     if(rows) html+='<table style="margin-top:6px"><tr><th>Werkzeug/Kriterium</th><th>Schuljahr</th></tr>'+rows+'</table>';
     return html;
   }
@@ -4398,19 +4378,19 @@
     if(!c)return; var html='<div class="print-header"><h1>Schülerstatistik · '+esc(c.subject+' '+c.name)+'</h1><div class="muted">'+esc(todayISO())+'</div></div><p class="muted">Es werden nur eingetragene Daten ausgewertet. n/a = nicht aktiv / keine aktive Beteiligung.</p>';
     c.students.forEach(function(s){ var rs=reportStudentStats(c,s.id), sum=studentSummary(c,s.id,{id:'report',date:todayISO()}); html+='<section class="person-block"><h2>'+esc(s.name)+'</h2>';
       html+='<table><tr><th>Bereich</th><th>Überblick</th></tr>';
-      html+='<tr><td>MN</td><td>'+esc(reportAreaBadge(c,s.id,'MN'))+' · Vorschlag: '+esc(sum.mnProposal)+'</td></tr>';
+      html+='<tr><td>MN</td><td>'+esc(reportAreaBadge(c,s.id,'MN'))+'</td></tr>';
       html+='<tr><td>AV</td><td>'+esc(reportAreaBadge(c,s.id,'AV'))+'</td></tr>';
       html+='<tr><td>SV</td><td>'+esc(reportAreaBadge(c,s.id,'SV'))+'</td></tr>';
-      html+='<tr><td>SN</td><td>'+esc(reportAreaBadge(c,s.id,'SN'))+' · Vorschlag: '+esc(sum.snProposal)+'</td></tr>';
+      html+='<tr><td>SN</td><td>'+esc(reportAreaBadge(c,s.id,'SN'))+'</td></tr>';
       var cs=studentCardStats(c,s.id); html+='<tr><td>Karten</td><td>gelb: '+esc(cs.yellow)+' · rot: '+esc(cs.red)+'</td></tr>'; html+='<tr><td>Anwesenheit</td><td>markiert fehlt: '+esc(rs.attendance.absent)+' · später: '+esc(rs.attendance.late)+'</td></tr>'; html+='<tr><td>Material</td><td>fehlende Einträge: '+esc(rs.material||0)+'</td></tr></table>';
-      html+=areaStatsHtml(c,s.id,'MN','Mitarbeit / MN'); html+=areaStatsHtml(c,s.id,'AV','Arbeitsverhalten / AV'); html+=areaStatsHtml(c,s.id,'SV','Sozialverhalten / SV'); html+=areaStatsHtml(c,s.id,'SN','Schriftliche Leistung / SN'); html+=cardStatsHtml(c,s.id);
+      html+=muHistoryHtml(c,s.id); html+=areaStatsHtml(c,s.id,'MN','Mitarbeit / MN'); html+=areaStatsHtml(c,s.id,'AV','Arbeitsverhalten / AV'); html+=areaStatsHtml(c,s.id,'SV','Sozialverhalten / SV'); html+=areaStatsHtml(c,s.id,'SN','Schriftliche Leistung / SN'); html+=cardStatsHtml(c,s.id);
       if(s.remarks) html+='<p><b>Schülerprofil:</b> '+esc(s.remarks)+'</p>'; html+='<p class="muted">Bemerkung / Entscheidung der Lehrkraft: ________________________________</p></section>'; });
     printDoc('Schülerstatistik '+c.name,html);
   }
-  function printInterimReports(c){ if(!c)return; var html='<div class="print-header"><h1>Zwischenstände · '+esc(c.subject+' '+c.name)+'</h1><div class="muted">'+esc(todayISO())+'</div></div>'; c.students.forEach(function(s){ var fake={id:'fake',date:todayISO()}; var sum=studentSummary(c,s.id,fake); html+='<section class="person-block"><h2>'+esc(s.name)+'</h2><table><tr><th>Bereich</th><th>Stand</th></tr><tr><td>MN-Vorschlag</td><td>'+esc(sum.mnProposal)+'</td></tr><tr><td>SN-Vorschlag</td><td>'+esc(sum.snProposal)+'</td></tr><tr><td>AV</td><td>'+esc(reportAreaBadge(c,s.id,'AV'))+'</td></tr><tr><td>SV</td><td>'+esc(reportAreaBadge(c,s.id,'SV'))+'</td></tr></table><p class="muted">Bemerkung / Entscheidung der Lehrkraft: ________________________________</p></section>'; }); printDoc('Zwischenstände '+c.name,html); }
-  function printClassOverview(c){ if(!c)return; var html='<div class="print-header"><h1>Klassenübersicht · '+esc(c.subject+' '+c.name)+'</h1><div class="muted">'+esc(todayISO())+'</div></div><table><thead><tr><th>Name</th><th>MN Vorschlag</th><th>SN Vorschlag</th><th>AV</th><th>SV</th><th>Zeugnis / Entscheidung</th></tr></thead><tbody>'; c.students.forEach(function(s){ var sum=studentSummary(c,s.id,{id:'fake',date:todayISO()}); html+='<tr><td>'+esc(s.name)+'</td><td>'+esc(sum.mnProposal)+'</td><td>'+esc(sum.snProposal)+'</td><td>'+esc(reportAreaBadge(c,s.id,'AV'))+'</td><td>'+esc(reportAreaBadge(c,s.id,'SV'))+'</td><td></td></tr>'; }); html+='</tbody></table>'; printDoc('Klassenübersicht '+c.name,html); }
+  function printInterimReports(c){if(!c)return;var html='<h1>Bestätigte Leistungsstände · '+esc(c.subject+' '+c.name)+'</h1>';c.students.forEach(function(s){html+='<section class="person-block"><h2>'+esc(s.name)+'</h2>'+muHistoryHtml(c,s.id)+'</section>';});printDoc('Zwischennoten '+c.name,html);}
+  function printClassOverview(c){if(!c)return;var html='<h1>Klassenübersicht · '+esc(c.subject+' '+c.name)+'</h1><table><tr><th>Name</th><th>Stichtag</th><th>MN</th><th>SN</th><th>ZN</th><th>AV</th><th>SV</th></tr>';c.students.forEach(function(s){var r=muLatest(c,s.id,todayISO());html+='<tr><td>'+esc(s.name)+'</td><td>'+esc(r?r.date:'—')+'</td>'+['MN','SN','ZN','AV','SV'].map(function(a){return '<td>'+esc(r&&r.grades[a]||'—')+'</td>';}).join('')+'</tr>';});printDoc('Klassenübersicht '+c.name,html+'</table>');}
   function printStudentList(c){ if(!c)return; var html='<div class="print-header"><h1>Schülerliste · '+esc(c.subject+' '+c.name)+'</h1><div class="muted">'+esc(todayISO())+'</div></div><table><thead><tr><th>Nr.</th><th>Name</th><th>Bemerkung</th></tr></thead><tbody>'; c.students.forEach(function(s,i){html+='<tr><td>'+(i+1)+'</td><td>'+esc(s.name)+'</td><td>'+esc(s.remarks||'')+'</td></tr>';}); html+='</tbody></table>'; printDoc('Schülerliste '+c.name,html); }
-  function printTestReports(c,lesson,block){ var html='<div class="print-header"><h1>'+esc((block.test&&block.test.title)||'Test')+' · '+esc(c.subject+' '+c.name)+'</h1><div class="muted">'+esc(lesson.date)+'</div></div>'; c.students.forEach(function(s){ var t=testTotals(block,s.id); html+='<section class="person-block"><h2>'+esc(s.name)+'</h2><table><thead><tr><th>Teil</th><th>Punkte</th></tr></thead><tbody>'; block.test.parts.forEach(function(p){ var val=(block.test.points[s.id]&&block.test.points[s.id][p.id])||0; html+='<tr><td>'+esc(p.label)+'</td><td>'+esc(val)+' / '+esc(p.max)+'</td></tr>'; }); html+='<tr><th>Gesamt</th><th>'+t.earned+' / '+t.max+' · '+round1(t.percent)+'% · '+esc(block.area||'SN')+' · Note '+esc(gradeFromPercent(t.percent,scaleForTest(block)))+'</th></tr></tbody></table><p>Unterschrift: __________________</p></section>'; }); printDoc('Testberichte '+c.name,html); }
+  function printTestReports(c,lesson,block){var html='<div class="print-header"><h1>'+esc((block.test&&block.test.title)||'Test')+' · '+esc(c.subject+' '+c.name)+'</h1><div class="muted">'+esc(lesson.date)+'</div></div>';studentsForDate(c,lesson.date).forEach(function(st){html+='<section class="person-block"><h2>'+esc(st.name)+'</h2><p>'+esc(block.area||'MN')+' · Note: '+esc(muTestGrade(block,st.id)||'—')+'</p><p>Unterschrift: __________________</p></section>';});printDoc('Testberichte '+c.name,html);}
 
   function nextExportFileName(){
     var d=new Date();
@@ -4479,7 +4459,72 @@
   try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }catch(e){}
   window.addEventListener('load', function(){ stabilizeViewportAfterWake(); }, {passive:true});
   window.addEventListener('pageshow', function(){ stabilizeViewportAfterWake(); }, {passive:true});
-  state=load(); save();
+  // Bewertung 2026: profiles, dated teacher decisions, evidence without duplicate counting.
+  var MU_AREAS=['MN','SN','AV','SV'];
+  var MU_GRADES=['1+','1','1-','2+','2','2-','3+','3','3-','4+','4','4-','5+','5','5-','6','n.e.','n.b.','befreit'];
+  var MU_CONDUCT=['A','B','C','D','E','n.b.'];
+  var MU_REASONS={AV:{D:['Mangelnde Aufmerksamkeit und Beteiligung, niedrige Lernbereitschaft und Eigeninitiative','Arbeitsmaterial wiederholt nicht zur Hand, Mappen/Hefte unvollständig und unordentlich','Kann Aufgaben nur mit Hilfe lösen, zeigt wenig Ausdauer','Arbeitet bei Partner- und Gruppenarbeit häufig wenig konstruktiv und verlässlich mit','Hausaufgaben oft nicht sorgfältig oder nicht vorgelegt, Vereinbarungen häufig nicht eingehalten'],E:['Beteiligt sich kaum am Unterricht, zeigt wenig Lernbereitschaft und Eigeninitiative','Arbeitsmaterial selten zur Hand','Arbeitet in Partner- oder Gruppenarbeitsphasen kaum mit und/oder behindert Lernprozesse','Hält Vereinbarungen in der Regel nicht ein']},SV:{D:['Muss sich mehr um angemessene Umgangsformen bemühen','Stört wiederholt den Unterricht, ist öfter unpünktlich und unzuverlässig','Vernachlässigt Klassendienste und Gemeinschaftsaufgaben, geht nicht immer sorgsam mit Inventar/Räumen um','Beeinflusst das Klassenklima negativ','Lässt sich bei Konflikten selten auf Lösungsvorschläge ein und ist wenig einsichtig'],E:['Verhält sich respektlos und intolerant, zeigt häufig unangemessene Umgangsformen','Verstößt häufig gegen Klassen- und Schulregeln','Beteiligt sich an Mobbing und Gewalt','Stört anhaltend den Unterricht, beeinflusst die Lernbereitschaft anderer negativ','Beschädigt oder zerstört mutwillig Inventar und/oder Räume/Gebäude']}};
+  var MU_CATALOG=[
+    ['Mündliche Überprüfung','MN','Mathematik'],['Probleme erkennen und formulieren','MN','Mathematik'],['Fachsprache','MN','Mathematik'],['Mathematisch modellieren','MN','Mathematik'],['Mathematisch argumentieren','MN','Mathematik'],['Unterrichtsdokumentation / Portfolio','MN','Mathematik'],['Methoden und Arbeitsweisen','MN','Mathematik'],['Mathematische Darstellungen','MN','Mathematik'],['Umgang mit mathematischen Symbolen','MN','Mathematik'],['Präsentation','MN',''],['Partner- und Gruppenarbeit (Ergebnis)','MN',''],['Wettbewerb','MN',''],['Quantitative Beteiligung','MN','Informatik'],['Qualitative Beteiligung','MN','Informatik'],['Produkterstellung','MN','Informatik'],['Projekt','MN','Informatik'],['Praktische Arbeit','MN',''],['Praktische Prüfung','SN','Informatik'],
+    ['Mitarbeit im Unterricht','AV',''],['Arbeitsmaterial und Mappen','AV',''],['Vor- und Nachbereitung','AV',''],['Zielstrebiges und selbständiges Arbeiten','AV',''],['Kooperations-, Kommunikations- und Teamfähigkeit','AV',''],['Einhaltung von Absprachen und Regeln','AV',''],['Sorgfalt, Ausdauer und Verlässlichkeit','AV',''],['Umgangsformen in der Klasse und der Schule','SV',''],['Hilfsbereitschaft und Achtung anderer, Fairness','SV',''],['Konfliktfähigkeit','SV',''],['Einhaltung von Absprachen und Regeln','SV',''],['Übernahme von Verantwortung','SV',''],['Mitgestaltung des Gemeinschaftslebens','SV',''],['Reflexionsfähigkeit und -bereitschaft','SV','']];
+  function muInit(d){
+    d.assessmentProfiles=d.assessmentProfiles||{};
+    d.classes.forEach(function(c){c.leistungsstaende=Array.isArray(c.leistungsstaende)?c.leistungsstaende:[];});
+    MU_CATALOG.forEach(function(x,i){if(!d.tools.some(function(t){return t.name===x[0]&&t.area===x[1] || t.id==='mu_assess_'+i;})){d.tools.push({id:'mu_assess_'+i,name:x[0],area:x[1],kind:x[1]==='AV'||x[1]==='SV'?'conduct':'stars',scale:5,icon:x[1]==='AV'?'🧭':x[1]==='SV'?'🤝':'⭐',assessmentSubject:x[2],optional:true});}});
+    return d;
+  }
+  function muBranch(c){var b=String(c.branch||'').toUpperCase().trim();return ({RZ:'RS',GZ:'GY',HZ:'HS',HR:'HR'})[b]||b||'';}
+  function muYear(c){return String(c.assessmentYear||((String(c.name||'').match(/^\s*(\d{1,2})/)||[])[1]||''));}
+  function muKeys(c){var f=String(c.subject||'').trim().toLowerCase(),b=muBranch(c),y=muYear(c);return [JSON.stringify([f]),JSON.stringify([f,b]),JSON.stringify([f,b,y]),'class:'+c.id];}
+  function muDefaultRule(t,c){var a=t.area,n=t.name||'';if(n==='Praktische Arbeit')a='MN';var standard=(a==='MN'&&(/antwort|idee|lösungsweg/i.test(n)))||(a==='AV'&&n==='Arbeitsverhalten')||(a==='SV'&&n==='Sozialverhalten');return {area:a,weight:1,mode:t.assessmentSubject&&t.assessmentSubject!==c.subject?'Deaktiviert':standard&&!t.optional?'Standard':'Optional'};}
+  function muProfile(c,depth){var f=String(c.subject||'').toLowerCase(),b=muBranch(c),keys=muKeys(c),p={mn:f==='informatik'?60:f==='mathematik'&&['HS','RS','HR'].includes(b)?40:50,soll:f==='informatik'?2:f==='mathematik'?(b==='GY'?4:5):0,period:f==='informatik'?'Halbjahr':'Schuljahr',tools:{},tests:{Test:{area:'MN',weight:1},Klassenarbeit:{area:'SN',weight:1},Lernkontrolle:{area:'SN',weight:1},'Praktische Arbeit':{area:'MN',weight:1},Projekt:{area:'MN',weight:1},'Praktische Prüfung':{area:'SN',weight:1}}};
+    if(f==='informatik')p.soll=1;
+    state.tools.forEach(function(t){p.tools[t.id]=muDefaultRule(t,c);});
+    keys.slice(0,depth==null?4:depth).forEach(function(k){var q=(state.assessmentProfiles||{})[k];if(!q)return;['mn','soll','period'].forEach(function(a){if(q[a]!=null)p[a]=q[a];});Object.keys(q.tools||{}).forEach(function(id){p.tools[id]=Object.assign({},p.tools[id]||{},q.tools[id]);});Object.keys(q.tests||{}).forEach(function(id){p.tests[id]=Object.assign({},p.tests[id]||{},q.tests[id]);});});return p;
+  }
+  function muSelect(values,value,change){var s=h('select',{});values.forEach(function(v){s.appendChild(h('option',{value:v,text:v||'—'}));});s.value=value==null?'':String(value);if(change)s.addEventListener('change',function(){change(this.value);});return s;}
+  function muTable(head){var t=h('table',{});t.appendChild(h('thead',{},[h('tr',{},head.map(function(x){return h('th',{text:x});}))]));return t;}
+  function muRow(t,cells){t.appendChild(h('tr',{},cells.map(function(x){return h('td',{},[typeof x==='string'?h('span',{text:x}):x]);})));}
+  function muField(label,el){return h('div',{style:'margin:8px 0'},[h('label',{class:'label',text:label}),el]);}
+  function renderAssessmentSettings(panel){
+    panel.appendChild(h('h2',{text:'Bewertungsprofile'}));if(!state.classes.length)return;
+    var c=byId(state.classes,ui.assessmentClassId)||state.classes[0];ui.assessmentClassId=c.id;
+    var cs=muSelect(state.classes.map(function(x){return x.id;}),c.id,function(v){ui.assessmentClassId=v;render();});Array.from(cs.options).forEach(function(o){var x=byId(state.classes,o.value);o.textContent=x.subject+' '+x.name;});panel.appendChild(muField('Beispielklasse / Profilkontext',cs));
+    var yr=h('input',{class:'input',value:muYear(c),placeholder:'z. B. 8'});yr.onchange=function(){c.assessmentYear=this.value.trim();save();render();};panel.appendChild(muField('Jahrgang der Klasse',yr));
+    var br=muSelect(['','HS','RS','GY','HR','WPK','Profil'],muBranch(c),function(v){c.branch=v;save();render();});panel.appendChild(muField('Schulzweig',br));
+    var dep=Number(ui.assessmentDepth||1),labels=['Fach','Fach / Schulzweig','Fach / Schulzweig / Jahrgang','Klasse'];panel.appendChild(muField('Bearbeitungsebene',muSelect(['1','2','3','4'],dep,function(v){ui.assessmentDepth=Number(v);render();})));Array.from(panel.lastChild.lastChild.options).forEach(function(o,i){o.textContent=labels[i];});
+    var key=muKeys(c)[dep-1],p=muProfile(c,dep);function change(fn){var q=state.assessmentProfiles[key]||(state.assessmentProfiles[key]={});fn(q);save();renderKeepScroll();}
+    panel.appendChild(h('div',{class:'notice',text:'Geerbte Einstellungen werden angezeigt. Änderungen gelten auf der gewählten Ebene. Bereits dokumentierte Leistungen behalten ihre gespeicherte Zuordnung.'}));
+    var mn=h('input',{class:'input',type:'number',min:0,max:100,value:p.mn});mn.onchange=function(){var v=clamp(this.value,0,100);change(function(q){q.mn=v;});};panel.appendChild(muField('MN % (SN = '+(100-p.mn)+' %)',mn));
+    var soll=h('input',{class:'input',type:'number',min:0,max:30,value:p.soll});soll.onchange=function(){var v=clamp(this.value,0,30);change(function(q){q.soll=v;});};panel.appendChild(muField('Soll: Klassenarbeiten / schriftliche Lernkontrollen',soll));panel.appendChild(muField('Bezugszeitraum',muSelect(['Schuljahr','Halbjahr','Epoche'],p.period,function(v){change(function(q){q.period=v;});})));
+    panel.appendChild(h('button',{class:'btn',text:'Ebene zurücksetzen / vererben',onclick:function(){if(confirm('Einstellungen dieser Ebene entfernen?')){delete state.assessmentProfiles[key];save();render();}}}));
+    panel.appendChild(h('h3',{text:'Beobachtungswerkzeuge'}));var t=muTable(['Werkzeug','Bereich','Gewicht','Verwendung']);state.tools.forEach(function(tool){var r=p.tools[tool.id];if(!r)return;function set(k,v){change(function(q){q.tools=q.tools||{};q.tools[tool.id]=Object.assign({},q.tools[tool.id]||{});q.tools[tool.id][k]=v;});}var w=h('input',{class:'input',type:'number',min:0,max:20,step:'0.5',value:r.weight});w.onchange=function(){set('weight',clamp(this.value,0,20));};muRow(t,[tool.icon+' '+tool.name,muSelect(['MN','SN','AV','SV','NOTE','neutral'],r.area,function(v){set('area',v);}),w,muSelect(['Standard','Optional','Deaktiviert'],r.mode,function(v){set('mode',v);})]);});panel.appendChild(h('div',{class:'table-wrap'},[t]));
+    panel.appendChild(h('h3',{text:'Leistungsnachweise'}));var tt=muTable(['Art','Bereich','Gewicht']);Object.keys(p.tests).forEach(function(k){var r=p.tests[k];function set(a,v){change(function(q){q.tests=q.tests||{};q.tests[k]=Object.assign({},q.tests[k]||{});q.tests[k][a]=v;});}var w=h('input',{class:'input',type:'number',min:0,max:20,step:'0.5',value:r.weight});w.onchange=function(){set('weight',clamp(this.value,0,20));};muRow(tt,[k,muSelect(['MN','SN','none'],r.area,function(v){set('area',v);}),w]);});panel.appendChild(tt);
+  }
+  function muRule(c,t){return c?muProfile(c).tools[t.id]||muDefaultRule(t,c):{area:t.area,mode:t.optional?'Optional':'Standard',weight:1};}
+  function muBlockClass(b){var l=state.lessons.find(function(l){return (l.blocks||[]).some(function(x){return x===b;});});return l?byId(state.classes,l.classId):currentClass();}
+  function muStampBlock(b,c){if(!b||!c)return;b.assessmentRules=b.assessmentRules||{};(b.toolIds||[]).forEach(function(id){var t=getTool(id);if(t&&!b.assessmentRules[id])b.assessmentRules[id]=clone(muRule(c,t));});if(b.type==='test'&&b.assessmentWeight==null){var r=muProfile(c).tests[b.test&&b.test.kind||'Test'];if(r)b.assessmentWeight=r.weight;}}
+  function muLegacyTestComplete(b,sid){var ps=b.test&&b.test.parts||[],p=b.test&&b.test.points&&b.test.points[sid];return !!(ps.length&&p&&ps.every(function(x){return Object.prototype.hasOwnProperty.call(p,x.id)&&p[x.id]!==''&&p[x.id]!=null&&Number.isFinite(Number(p[x.id]));})&&ps.some(function(x){return Number(x.max)>0;}));}
+  function muTestComplete(b,sid){return !!muTestGrade(b,sid);}
+  function muEvidence(c,sid,date,after){var result={MN:[],SN:[],AV:[],SV:[]};getLessonsForClass(c).forEach(function(l){if(l.canceled||l.date>date||(after&&l.date<=after)||!studentIsInClassOnDate(c,sid,l.date)||isStudentAbsent(l,sid))return;
+    var grades=l.grades&&l.grades[sid]||{};var manual={};['MN','SN'].forEach(function(a){var g=grades[a],v=g&&gradeToNumber(g.grade);if(v){manual[a]=true;result[a].push({date:l.date,kind:'Unterrichtsnote',value:v,weight:1});}});
+    (l.blocks||[]).forEach(function(b){if(b.type==='test'&&result[b.area]&&muTestComplete(b,sid)){var v=gradeToNumber(muTestGrade(b,sid));if(v)result[b.area].push({date:l.date,kind:b.test.kind||'Test',value:v,weight:b.assessmentWeight==null?1:b.assessmentWeight});}});
+    (l.observations||[]).forEach(function(o){if(o.studentId!==sid)return;var b=observationBlock(l,o),t=getTool(o.toolId);if(!b||!t||!result[b.area]||manual[b.area])return;var v=observationEffectiveValue(o);if(!(v>0))return;var r=b.assessmentRules&&b.assessmentRules[t.id];var weight=r&&r.weight!=null?r.weight:1;var a=b.area;var value=a==='AV'||a==='SV'?conductValueLabel(o.value||o.level):Math.max(1,Math.min(6,6-5*(v-1)/Math.max(1,(t.scale||5)-1)));if(value==='—')return;result[a].push({date:l.date,kind:t.name,value:value,weight:weight});});});return result;}
+  function muMean(rows){var sum=0,w=0;rows.forEach(function(r){if(typeof r.value==='number'&&r.weight>0){sum+=r.value*r.weight;w+=r.weight;}});return w?sum/w:null;}
+  function muGrade(v){if(v==null)return '';var n=clamp(Math.round(v),1,6);if(n===6)return '6';return String(n)+(v<n-1/6?'+':v>n+1/6?'-':'');}
+  function muConduct(rows){var counts={A:0,B:0,C:0,D:0,E:0};rows.forEach(function(r){if(counts[r.value]!=null&&r.weight>0)counts[r.value]++;});var max=Math.max.apply(null,Object.values(counts));if(!max)return '';var ties=Object.keys(counts).filter(function(k){return counts[k]===max;});return ties.length===1?ties[0]:'';}
+  function muLatest(c,sid,date){return (c.leistungsstaende||[]).filter(function(x){return x.date<=date&&x.studentId===sid;}).sort(function(a,b){return b.date.localeCompare(a.date);})[0];}
+  function muProposal(c,sid,date){var e=muEvidence(c,sid,date),p=muProfile(c),m=muMean(e.MN),s=muMean(e.SN),prev=muLatest(c,sid,addDaysISO(date,-1)),newer=prev?muEvidence(c,sid,date,prev.date):e, g={MN:muGrade(m),SN:muGrade(s),ZN:muGrade(p.mn===0?s:p.mn===100?m:m==null||s==null?null:(m*p.mn+s*(100-p.mn))/100),AV:muConduct(e.AV),SV:muConduct(e.SV)};
+    if(prev){MU_AREAS.forEach(function(a){if(!newer[a].some(function(r){return r.weight>0;}))g[a]=prev.grades[a]||g[a];});if(!newer.MN.length&&!newer.SN.length)g.ZN=prev.grades.ZN||g.ZN;}
+    return {grades:g,evidence:e,previous:prev,newer:newer,profile:p};}
+  function muHistoryHtml(c,sid){var rows=(c.leistungsstaende||[]).filter(function(x){return x.studentId===sid;}).sort(function(a,b){return a.date.localeCompare(b.date);});var html='<h3>Dokumentierte Leistungsstände</h3>';if(!rows.length)return html+'<p class="muted">Keine bestätigten Leistungsstände.</p>';html+='<table><tr><th>Stichtag</th><th>MN</th><th>SN</th><th>ZN</th><th>AV</th><th>SV</th><th>Bemerkungen</th></tr>';rows.forEach(function(x){html+='<tr><td>'+esc(x.date)+'</td>'+['MN','SN','ZN','AV','SV'].map(function(a){return '<td>'+esc(x.grades[a]||'—')+'</td>';}).join('')+'<td>'+esc([x.remark,x.reasonsAV,x.reasonsSV].filter(Boolean).join(' · '))+'</td></tr>';});return html+'</table>';}
+  function muLeistungsstand(c){if(!c)return;var body=h('div',{}),date=h('input',{type:'date',class:'input',value:todayISO(),max:todayISO()}),wrap=h('div',{});body.appendChild(muField('Stichtag',date));body.appendChild(wrap);var draft=[];
+    function draw(){clear(wrap);draft=[];var d=date.value;if(!d||d>todayISO())return;var p=muProfile(c);wrap.appendChild(h('p',{class:'hint',text:'MN '+p.mn+' % / SN '+(100-p.mn)+' %. Vorschläge sind unverbindlich; AV/SV ganzheitlich beurteilen. +/- sind interne Vorschläge, keine LEB-Dezimalwerte.'}));var table=muTable(['Schüler:in','MN','SN','ZN','AV','SV','Bestätigen']);studentsForDate(c,d).forEach(function(st){var prop=muProposal(c,st.id,d),existing=(c.leistungsstaende||[]).find(function(x){return x.date===d&&x.studentId===st.id;}),row={studentId:st.id,grades:{},prop:prop,existing:existing,reasonsAV:existing&&existing.reasonsAV||'',reasonsSV:existing&&existing.reasonsSV||'',remark:existing&&existing.remark||'',checked:false};draft.push(row);var cells=[h('div',{},[h('b',{text:st.name}),h('p',{class:'hint',text:prop.previous?'Letzter Stand '+prop.previous.date+': '+['MN','SN','ZN','AV','SV'].map(function(a){return a+' '+(prop.previous.grades[a]||'—');}).join(' · '):'Kein früherer Stand'}),h('p',{class:'hint',text:'Neue Einträge MN/SN/AV/SV: '+MU_AREAS.map(function(a){return prop.newer[a].length;}).join('/')})])];['MN','SN','ZN','AV','SV'].forEach(function(a){var value=existing?existing.grades[a]||'':prop.grades[a]||'';row.grades[a]=value;var s=muSelect([''].concat(a==='AV'||a==='SV'?MU_CONDUCT:MU_GRADES),value,function(v){row.grades[a]=v;});cells.push(h('div',{},[h('span',{class:'hint',text:'V: '+(prop.grades[a]||'—')}),s]));});var check=h('input',{type:'checkbox'});check.onchange=function(){row.checked=this.checked;};cells.push(h('div',{},[check,h('button',{class:'btn small',text:'Details',onclick:function(){muStandDetails(row);}})]));muRow(table,cells);});wrap.appendChild(h('div',{class:'table-wrap'},[table]));wrap.appendChild(h('button',{class:'btn',text:'Alle zur Bestätigung auswählen',onclick:function(){draft.forEach(function(x){x.checked=true;});wrap.querySelectorAll('input[type=checkbox]').forEach(function(x){x.checked=true;});}}));}
+    date.onchange=draw;draw();showModalCancelOnly('Leistungsstand festhalten',body);body.appendChild(h('button',{class:'btn primary',text:'Ausgewählte Leistungsstände bestätigen',onclick:function(){var chosen=draft.filter(function(x){return x.checked;});if(!chosen.length){alert('Bitte Schüler:innen auswählen.');return;}if(chosen.some(function(x){return !Object.values(x.grades).some(Boolean);})){alert('Mindestens eine Bewertung je ausgewählter Person festlegen.');return;}if(!confirm(chosen.length+' Leistungsstände zum '+date.value+' verbindlich speichern?'))return;c.leistungsstaende=c.leistungsstaende||[];chosen.forEach(function(x){var old=c.leistungsstaende.findIndex(function(r){return r.studentId===x.studentId&&r.date===date.value;});var rec={studentId:x.studentId,date:date.value,schoolYear:c.schoolYear,grades:clone(x.grades),evidence:clone(x.prop.evidence),profile:clone(x.prop.profile),reasonsAV:x.reasonsAV,reasonsSV:x.reasonsSV,remark:x.remark,confirmedAt:new Date().toISOString()};if(old>=0)c.leistungsstaende[old]=rec;else c.leistungsstaende.push(rec);});save();draw();renderKeepScroll();showToast('Leistungsstände gespeichert');}}));
+  }
+  function muStandDetails(row){var body=h('div',{});['AV','SV'].forEach(function(a){var v=row.grades[a];if(v!=='D'&&v!=='E')return;body.appendChild(h('h3',{text:a+' · '+v}));var key='reasons'+a;var selected=(row[key]||'').split('\n').filter(Boolean);MU_REASONS[a][v].forEach(function(r,i){var txt=(v==='D'?'D'+(i+1)+' – ':'')+r,cb=h('input',{type:'checkbox'});cb.checked=selected.includes(txt);cb.onchange=function(){selected=cb.checked?selected.concat(txt):selected.filter(function(x){return x!==txt;});row[key]=selected.join('\n');};body.appendChild(h('label',{style:'display:block;margin:8px 0'},[cb,' '+txt]));});});var note=h('textarea',{});note.value=row.remark;note.oninput=function(){row.remark=this.value;};body.appendChild(muField('Bemerkung / pädagogische Entscheidung',note));body.appendChild(h('h3',{text:'Datengrundlage'}));MU_AREAS.forEach(function(a){var rs=row.prop.evidence[a];body.appendChild(h('p',{text:a+': '+(rs.map(function(r){return r.date+' '+r.kind+': '+(typeof r.value==='number'?round1(r.value):r.value);}).join(' · ')||'Keine Daten')}));});showModalCancelOnly('Details zum Leistungsstand',body);}
+
+  state=muInit(load()); save();
   // Vor dem ersten Rendern bereits die aktuell sichtbare Browserhöhe setzen.
   // Das verhindert den falschen ersten Layout-Zustand auf iPad/Chrome.
   updateViewportVars();
